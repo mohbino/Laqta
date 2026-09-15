@@ -3,6 +3,8 @@ name: Build Android App Bundle (AAB)
 on:
   push:
     branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -11,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -19,20 +21,36 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Make Gradle Wrapper Executable
+      - name: Prepare Android Project & Gradle Wrapper
         run: |
-          if [ -d "android" ]; then
-            cd android
+          echo "=== 1. Detecting Project Directory ==="
+          ls -la
+
+          if [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
+            TARGET_DIR="."
+          elif [ -d "android" ]; then
+            TARGET_DIR="android"
+          else
+            TARGET_DIR="."
           fi
-          chmod +x ./gradlew
+
+          echo "Selected target directory: $TARGET_DIR"
+          echo "TARGET_DIR=$TARGET_DIR" >> $GITHUB_ENV
+          cd $TARGET_DIR
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          else
+            echo "Installing standard Gradle wrapper..."
+            gradle wrapper --gradle-version 8.4
+            chmod +x ./gradlew
+          fi
 
       - name: Build Android App Bundle (AAB)
         run: |
-          if [ -d "android" ]; then
-            cd android
-          fi
+          cd ${{ env.TARGET_DIR }}
+          chmod +x ./gradlew
           ./gradlew bundleRelease --stacktrace
 
       - name: Upload AAB Artifact
@@ -40,6 +58,6 @@ jobs:
         with:
           name: laqta-app-release-aab
           path: |
-            android/app/build/outputs/bundle/release/*.aab
-            app/build/outputs/bundle/release/*.aab
+            **/build/outputs/bundle/release/*.aab
+            **/*.aab
           retention-days: 30
