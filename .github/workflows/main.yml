@@ -2,62 +2,43 @@ name: Build Android App Bundle (AAB)
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Release AAB
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: temurin
           java-version: '17'
 
-      - name: Prepare Android Project & Gradle Wrapper
+      - name: Extract Android project
         run: |
-          echo "=== 1. Detecting Project Directory ==="
-          ls -la
+          mkdir android-project
+          unzip -q *.zip -d android-project
+          echo "Files extracted:"
+          find android-project -maxdepth 3 -type f | head -100
 
-          if [ -f "build.gradle.kts" ] || [ -f "build.gradle" ]; then
-            TARGET_DIR="."
-          elif [ -d "android" ]; then
-            TARGET_DIR="android"
-          else
-            TARGET_DIR="."
-          fi
-
-          echo "Selected target directory: $TARGET_DIR"
-          echo "TARGET_DIR=$TARGET_DIR" >> $GITHUB_ENV
-          cd $TARGET_DIR
-
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          else
-            echo "Installing standard Gradle wrapper..."
-            gradle wrapper --gradle-version 8.4
-            chmod +x ./gradlew
-          fi
-
-      - name: Build Android App Bundle (AAB)
+      - name: Find project
         run: |
-          cd ${{ env.TARGET_DIR }}
-          chmod +x ./gradlew
+          PROJECT_DIR=$(dirname "$(find android-project -name settings.gradle.kts -o -name settings.gradle | head -1)")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      - name: Build AAB
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
           ./gradlew bundleRelease --stacktrace
 
-      - name: Upload AAB Artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: laqta-app-release-aab
-          path: |
-            **/build/outputs/bundle/release/*.aab
-            **/*.aab
-          retention-days: 30
+          name: laqta-release-aab
+          path: "**/build/outputs/bundle/release/*.aab"
