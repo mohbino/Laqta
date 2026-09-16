@@ -19,17 +19,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract Android project
+      - name: Extract project
         run: |
           mkdir android-project
           unzip -q *.zip -d android-project
-          echo "Files extracted:"
-          find android-project -maxdepth 3 -type f | head -100
 
-      - name: Find project
+      - name: Find Android project
         run: |
           PROJECT_DIR=$(dirname "$(find android-project -name settings.gradle.kts -o -name settings.gradle | head -1)")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Fix Gradle settings
+        run: |
+          cd "$PROJECT_DIR"
+          if [ -f gradle.properties ]; then
+            sed -i 's/org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8/' gradle.properties
+          fi
 
       - name: Build AAB
         run: |
